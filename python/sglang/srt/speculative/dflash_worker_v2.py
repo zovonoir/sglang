@@ -671,6 +671,25 @@ class DFlashWorkerV2(BaseSpecWorker):
         def _cast_hs(x: torch.Tensor) -> torch.Tensor:
             return x if x.dtype == weight_dtype else x.to(weight_dtype)
 
+        compute_argmax_token = getattr(lm_head, "compute_argmax_token", None)
+        if callable(compute_argmax_token):
+            # External model packages may own a different vocab-sharding ABI.
+            # Let the head perform its native TP reduction instead of fabricating
+            # SGLang's shard_indices metadata. ATOM's implementation gathers only
+            # one (value, global-id) pair per token and rank.
+            for start in range(0, num_tokens, int(chunk_size)):
+                end = min(num_tokens, start + int(chunk_size))
+                token_ids = compute_argmax_token(
+                    _cast_hs(hidden_states[start:end])
+                )
+                if token_ids.shape != (end - start,):
+                    raise ValueError(
+                        "DFLASH lm_head.compute_argmax_token returned an invalid "
+                        f"shape: expected {(end - start,)}, got {tuple(token_ids.shape)}."
+                    )
+                out_tokens[start:end].copy_(token_ids.to(torch.long))
+            return out_tokens
+
         if not hasattr(lm_head, "shard_indices"):
             for start in range(0, num_tokens, int(chunk_size)):
                 end = min(num_tokens, start + int(chunk_size))
