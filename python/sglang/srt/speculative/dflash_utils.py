@@ -53,6 +53,7 @@ elif is_hip():
     from sglang.kernels.ops.sampling.renorm_triton import (
         top_p_renorm_probs_triton as top_p_renorm_prob,
     )
+    from sgl_kernel import tree_speculative_sampling_target_only
 
     _DFLASH_SAMPLING_VERIFY_AVAILABLE = True
 else:
