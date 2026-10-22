@@ -62,7 +62,15 @@ elif is_hip():
         top_p_renorm_probs_triton as top_p_renorm_prob,
     )
 
-    tree_speculative_sampling_target_only = None
+    # sgl_kernel.tree_speculative_sampling_target_only is CUDA-only: ROCm builds
+    # register no such operator, so every temperature>0 DFLASH request would
+    # fail. DFlash proposals are a linear chain, so the chain-specialised Triton
+    # verifier is used instead; it keeps the operator's keyword signature.
+    from sglang.kernels.ops.speculative.dflash_chain_sampling import (
+        chain_speculative_sampling_target_only as tree_speculative_sampling_target_only,
+    )
+
+    _DFLASH_SAMPLING_VERIFY_AVAILABLE = True
 else:
     top_k_renorm_prob = None
     top_p_renorm_prob = None
